@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="ترجم المقالات إلى العربية أو اشرحها باستخدام NanoGPT.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>ترجمها | مترجمك</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--panel2:#182238;--line:#29354c;--text:#eef3ff;--muted:#a9b5cb;--accent:#a7f3d0;--accentText:#052e25;--danger:#fecaca;--blue:#bfdbfe}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#10182b 0,#0b1020 360px);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.65}
+main{max-width:780px;margin:0 auto;padding:18px 14px 42px}
+header{display:flex;align-items:center;gap:12px;margin:6px 0 20px}
+.logo{width:46px;height:46px;border-radius:15px;background:var(--accent);color:var(--accentText);display:grid;place-items:center;font-size:25px;font-weight:800}
+h1{font-size:1.35rem;margin:0}header p{margin:1px 0 0;color:var(--muted);font-size:.9rem}
+.card{background:rgba(18,26,45,.96);border:1px solid var(--line);border-radius:18px;padding:15px;margin:12px 0;box-shadow:0 10px 30px #00000014}
+h2{font-size:1rem;margin:0 0 12px}
+label{display:block;font-size:.9rem;color:var(--muted);margin:12px 0 6px}
+input,select,textarea{width:100%;border:1px solid #35435d;border-radius:12px;padding:12px;background:#0b1222;color:var(--text);font:inherit;outline:none}
+textarea{min-height:210px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 14px;cursor:pointer}
+.primary{background:var(--accent);color:var(--accentText);width:100%;margin-top:12px}
+.secondary{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+.small{font-size:.82rem;padding:9px 11px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.note{color:var(--muted);font-size:.83rem;margin:8px 0}
+.status{display:none;padding:11px 12px;border-radius:12px;margin-top:12px;background:#1d2b42;color:var(--blue);white-space:pre-wrap;overflow-wrap:anywhere}
+.status.error{display:block;color:var(--danger);background:#351d2a}
+.status.show{display:block}
+#output{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;font-size:1rem}
+.outputTitle{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{font-size:.75rem;background:#22354a;color:var(--accent);padding:4px 8px;border-radius:999px}
+details summary{cursor:pointer;color:var(--muted)}
+footer{font-size:.78rem;color:var(--muted);text-align:center;margin-top:20px}
+@media(max-width:460px){.row{grid-template-columns:1fr}main{padding:14px 11px 32px}.card{padding:13px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="logo">ع</div>
+  <div><h1>ترجمها</h1><p>ترجمة أمينة، وشرح عند الطلب</p></div>
+</header>
+
+<section class="card">
+  <h2>المقال</h2>
+  <div id="sharedInfo" class="note" style="display:none"></div>
+  <label for="sourceTitle">عنوان المقال (اختياري)</label>
+  <input id="sourceTitle" placeholder="عنوان المقال">
+  <label for="sourceText">النص الذي تريد ترجمته</label>
+  <textarea id="sourceText" placeholder="شارك المقال إلى «ترجمها» وسيحاول استخراج النص تلقائيًا، أو الصق النص هنا."></textarea>
+  <div class="actions">
+    <button class="secondary small" id="pasteBtn">لصق من الحافظة</button>
+    <button class="secondary small" id="clearBtn">مسح النص</button>
+    <button class="secondary small" id="openLinkBtn" style="display:none">فتح المقال الأصلي</button>
+    <button class="secondary small" id="extractBtn" style="display:none">إعادة استخراج المقال</button>
+  </div>
+  <p class="note">عند مشاركة رابط فقط، تحاول الأداة استخراج نص المقال تلقائيًا. قد تفشل بعض المواقع بسبب تسجيل الدخول أو منع القراءة الآلية. استخراج الرابط يتم عبر خدمة قارئ خارجية، ثم يُرسل النص إلى NanoGPT للترجمة.</p>
+</section>
+
+<section class="card">
+  <h2>الإعدادات</h2>
+  <label for="mode">طريقة الإخراج</label>
+  <select id="mode">
+    <option value="faithful">ترجمة أمينة مبسّطة (موصى بها)</option>
+    <option value="literal">ترجمة أقرب إلى النص الأصلي</option>
+    <option value="explain">شرح للمبتدئ بدل الترجمة</option>
+  </select>
+  <div class="row">
+    <div>
+      <label for="modelSelect">الموديل</label>
+      <select id="modelSelect"><option value="">حمّل قائمة الموديلات أو أدخل المعرّف أدناه</option></select>
+    </div>
+    <div>
+      <label for="customModel">معرّف الموديل (Model ID)</label>
+      <input id="customModel" placeholder="الصق Model ID من NanoGPT">
+    </div>
+  </div>
+  <div class="actions">
+    <button class="secondary small" id="loadModelsBtn">تحميل موديلات الاشتراك</button>
+    <button class="secondary small" id="settingsBtn">حفظ الإعدادات</button>
+  </div>
+  <label for="apiKey">NanoGPT API key</label>
+  <input id="apiKey" type="password" autocomplete="off" placeholder="الصق مفتاح API هنا">
+  <div class="actions">
+    <button class="secondary small" id="toggleKeyBtn">إظهار / إخفاء المفتاح</button>
+    <button class="secondary small" id="forgetKeyBtn">حذف المفتاح المحفوظ</button>
+  </div>
+  <p class="note">المفتاح يُحفظ على هذا الجهاز فقط في تخزين المتصفح. لا تضعه في ملفات عامة أو ترسله لأحد. إذا لم يعمل الاتصال من المتصفح بسبب قيود CORS، سنحتاج إلى حل محلي عبر Termux بدل كشف المفتاح في خدمة عامة.</p>
+</section>
+
+<button class="primary" id="translateBtn">ترجمة المقال</button>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+
+<section class="card" id="resultCard" style="display:none">
+  <div class="outputTitle"><h2 id="resultHeading">النتيجة</h2><span id="modeBadge" class="pill"></span></div>
+  <div id="output"></div>
+  <div class="actions">
+    <button class="secondary small" id="copyBtn">نسخ النتيجة</button>
+    <button class="secondary small" id="explainBtn">اشرح هذه الترجمة</button>
+  </div>
+  <p class="note" id="explainNote" style="display:none">الشرح طلب منفصل إلى الموديل، وقد يستهلك من حصة اشتراكك.</p>
+</section>
+
+<footer>نسخة أولية مستقلة · لا تتصل بحساب Feedly ولا تغيّر محتواه.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const API_BASE = "https://nano-gpt.com/api/subscription/v1";
+let sharedUrl = "";
+let incomingShare = false;
+let lastTranslation = "";
+let lastOriginal = "";
+let lastTitle = "";
+let lastMode = "faithful";
+
+function setStatus(message, type="show") {
+  const el = $("status");
+  el.textContent = message;
+  el.className = "status " + type;
+}
+function clearStatus(){ $("status").className="status"; $("status").textContent=""; }
+function saveSettings() {
+  localStorage.setItem("arabicTranslator.model", $("customModel").value.trim() || $("modelSelect").value);
+  localStorage.setItem("arabicTranslator.mode", $("mode").value);
+  const key = $("apiKey").value.trim();
+  if (key) localStorage.setItem("arabicTranslator.apiKey", key);
+  setStatus("تم حفظ الإعدادات على هذا الجهاز.", "show");
+}
+function loadSettings() {
+  $("apiKey").value = localStorage.getItem("arabicTranslator.apiKey") || "";
+  $("customModel").value = localStorage.getItem("arabicTranslator.model") || "";
+  $("mode").value = localStorage.getItem("arabicTranslator.mode") || "faithful";
+}
+function findUrl(text) {
+  const m = /(https?:\/\/[^\s<>"]+)/i.exec(text || "");
+  return m ? m[1].replace(/[),.;\]،؛]+$/, "") : "";
+}
+function stripUrls(text) {
+  return (text || "").replace(/https?:\/\/[^\s<>"]+/gi, " ").replace(/[\t ]+/g, " ").trim();
+}
+function likelyFullArticle(text, title) {
+  let cleaned = stripUrls(text);
+  if (title) cleaned = cleaned.replace(title, "");
+  return cleaned.replace(/\s/g, "").length >= 400;
+}
+function hasSavedModelAndKey() {
+  return !!(($('apiKey').value.trim()) && ($('customModel').value.trim() || $('modelSelect').value));
+}
+function readShared() {
+  const q = new URLSearchParams(location.search);
+  const title = q.get("title") || q.get("name") || "";
+  const text = q.get("text") || q.get("body") || "";
+  const explicitUrl = q.get("url") || q.get("link") || "";
+  incomingShare = !!(title || text || explicitUrl || q.get("shared"));
+  if (!incomingShare) return;
+  if (title) $("sourceTitle").value = title;
+  sharedUrl = explicitUrl || findUrl(text);
+  const usableText = text && likelyFullArticle(text, title);
+  if (usableText) {
+    $("sourceText").value = text;
+    if (sharedUrl && !text.includes(sharedUrl)) $("sourceText").value += "\n\nرابط المقال: " + sharedUrl;
+  } else {
+    $("sourceText").value = "";
+  }
+  if (sharedUrl) {
+    $("openLinkBtn").style.display = "inline-block";
+    $("extractBtn").style.display = "inline-block";
+  }
+  $("sharedInfo").style.display = "block";
+  if (sharedUrl && !usableText) {
+    $("sharedInfo").textContent = "وصل الرابط فقط. أحاول الآن استخراج نص المقال كاملًا…";
+    history.replaceState({}, "", location.pathname);
+    extractArticle(true);
+    return;
+  }
+  if (usableText) {
+    $("sharedInfo").textContent = "تم استلام نص من التطبيق. أجهّزه للترجمة…";
+    history.replaceState({}, "", location.pathname);
+    if (hasSavedModelAndKey()) setTimeout(() => translateCurrent(true), 250);
+    else setStatus("تم استلام النص. احفظ مفتاح NanoGPT واختر موديلًا، ثم اضغط «ترجمة المقال».", "show");
+  } else if (!sharedUrl && text) {
+    $("sourceText").value = text;
+    $("sharedInfo").textContent = "تم استلام النص من التطبيق.";
+    history.replaceState({}, "", location.pathname);
+    if (hasSavedModelAndKey()) setTimeout(() => translateCurrent(true), 250);
+    else setStatus("تم استلام النص. احفظ مفتاح NanoGPT واختر موديلًا، ثم اضغط «ترجمة المقال».", "show");
+  } else {
+    $("sharedInfo").textContent = "لم يصل نص أو رابط قابل للقراءة. جرّب مشاركة الصفحة من المتصفح أو مشاركة النص المحدد.";
+    history.replaceState({}, "", location.pathname);
+  }
+}
+async function extractArticle(autoTranslate = false) {
+  if (!sharedUrl) {
+    setStatus("لم يصل رابط صالح لاستخراج المقال.", "error");
+    return;
+  }
+  const btn = $("extractBtn");
+  btn.disabled = true;
+  btn.textContent = "جارٍ استخراج النص…";
+  $("sharedInfo").style.display = "block";
+  $("sharedInfo").textContent = "أحاول جلب نص المقال من الرابط. قد يستغرق ذلك عدة ثوانٍ…";
+  setStatus("جارٍ استخراج المقال من الرابط عبر خدمة قارئ صفحات. لم يُرسل مفتاح NanoGPT لهذه الخدمة.", "show");
+  try {
+    const target = sharedUrl.trim();
+    if (!/^https?:\/\//i.test(target)) throw new Error("الرابط غير صالح.");
+    const readerEndpoint = "https://r.jina.ai/" + target;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    let response;
+    try {
+      response = await fetch(readerEndpoint, { method: "GET", headers: { "Accept": "text/plain" }, signal: controller.signal });
+    } finally { clearTimeout(timeoutId); }
+    const article = (await response.text()).trim();
+    if (!response.ok) throw new Error("خدمة استخراج المقال أعادت HTTP " + response.status + ".");
+    if (article.length < 300) throw new Error("الموقع لم يُرجع نصًا كافيًا. قد يكون المقال محجوبًا أو يحتاج إلى تسجيل دخول.");
+    const maxChars = 45000;
+    $("sourceText").value = article.length > maxChars ? article.slice(0, maxChars) + "\n\n[تم تقصير النص عند 45000 حرف لتفادي طلب بالغ الضخامة. افتح المقال الأصلي إذا كان أطول.]" : article;
+    if (!$("sourceTitle").value.trim()) {
+      const titleMatch = article.match(/(?:^|\n)Title:\s*(.+)/i);
+      if (titleMatch) $("sourceTitle").value = titleMatch[1].trim();
+    }
+    $("sharedInfo").textContent = "تم استخراج نحو " + $("sourceText").value.length.toLocaleString("ar") + " حرفًا من المقال. راجع النص ثم تُترجم تلقائيًا إذا كانت إعدادات NanoGPT محفوظة.";
+    setStatus("نجح استخراج النص. " + (article.length > maxChars ? "النص طويل وتم قصّه." : "المقال جاهز للترجمة."), "show");
+    if (autoTranslate && hasSavedModelAndKey()) setTimeout(() => translateCurrent(true), 250);
+    else if (autoTranslate) setStatus("اكتمل استخراج المقال. احفظ مفتاح NanoGPT واختر موديلًا، ثم اضغط «ترجمة المقال».", "show");
+  } catch (e) {
+    const detail = e.name === "AbortError" ? "انتهت مهلة الانتظار." : e.message;
+    $("sharedInfo").textContent = "تعذّر استخراج النص تلقائيًا. قد يمنع الموقع القراءة الآلية. يمكنك فتح الرابط الأصلي ومشاركة النص المحدد أو نسخه إلى المربع.";
+    setStatus("فشل استخراج المقال: " + detail + "\nلم يتم إرسال الرابط إلى NanoGPT للترجمة لأنه لم يصل نص المقال.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "إعادة استخراج المقال";
+  }
+}
+async function loadModels() {
+  const key = $("apiKey").value.trim();
+  if (!key) { setStatus("أدخل مفتاح NanoGPT أولًا.", "error"); return; }
+  setStatus("جارٍ تحميل موديلات الاشتراك…");
+  try {
+    const r = await fetch(API_BASE + "/models?detailed=true", {
+      headers: { "Authorization": "Bearer " + key, "Accept": "application/json" }
+    });
+    const body = await r.text();
+    if (!r.ok) throw new Error("HTTP " + r.status + ": " + body.slice(0,250));
+    const data = JSON.parse(body);
+    let models = Array.isArray(data) ? data : (data.data || data.models || data.results || []);
+    if (!Array.isArray(models) || !models.length) throw new Error("وصل رد، لكن لم أتعرف على بنية قائمة الموديلات. أدخل Model ID يدويًا من NanoGPT.");
+    const sel = $("modelSelect");
+    sel.innerHTML = "";
+    models.forEach(m => {
+      const id = typeof m === "string" ? m : (m.id || m.model || m.model_id || m.slug || "");
+      if (!id) return;
+      const name = typeof m === "string" ? m : (m.name || m.display_name || id);
+      const op = document.createElement("option");
+      op.value = id; op.textContent = name === id ? id : name + " — " + id;
+      sel.appendChild(op);
+    });
+    if (!sel.options.length) throw new Error("لم تتضمن القائمة معرّفات موديلات واضحة.");
+    $("customModel").value = sel.value;
+    setStatus("تم تحميل " + sel.options.length + " موديلًا. اختر الموديل المطلوب ثم اضغط حفظ الإعدادات.", "show");
+  } catch(e) {
+    setStatus("تعذر تحميل قائمة الموديلات.\n" + e.message + "\nيمكنك إدخال Model ID يدويًا. إذا ظهر خطأ CORS، فالواجهة المباشرة لا تستطيع الوصول إلى API من المتصفح.", "error");
+  }
+}
+function promptForMode(mode, title, text) {
+  const common = "ترجم إلى العربية الفصحى. لا تخترع معلومات، ولا تحذف الأرقام أو الحجج أو التحفظات. حافظ على الأسماء والمصطلحات ودرجة اليقين. أخرج النتيجة فقط.";
+  if (mode === "literal") return "قدّم ترجمة أمينة قريبة من بنية النص الأصلي قدر الإمكان، مع عربية سليمة غير متكلفة. لا تلخص ولا تشرح من عندك.\n" + common + "\nالعنوان: " + title + "\nالنص:\n" + text;
+  if (mode === "explain") return "اشرح النص التالي للقارئ العربي المبتدئ بلغة سهلة ودقيقة. وضّح الفكرة الأساسية، واشرح المصطلحات الصعبة، واستخدم مثالًا بسيطًا فقط عندما يساعد الفهم. ميّز بوضوح بين ما يقوله المصدر وما تضيفه من مثال توضيحي. لا تنسب إلى الكاتب معلومات غير موجودة في النص.\nالعنوان: " + title + "\nالنص:\n" + text;
+  return "أنت مترجم ومحرر معرفي محترف. قدّم ترجمة عربية فصحى معاصرة، طبيعية وسهلة، وأمينة تمامًا للأصل. ترجم النص كاملًا ولا تلخصه. حافظ على الأرقام والأمثلة والحجج والمصطلحات والفرق بين الاحتمال واليقين والارتباط والسببية. وضّح المصطلح الصعب باختصار عند الحاجة فقط. لا تضف أمثلة أو استنتاجات من عندك. حافظ على العنوان والفقرات والنبرة. أخرج الترجمة فقط.\nالعنوان: " + title + "\nالنص:\n" + text;
+}
+async function callModel(mode, textOverride) {
+  const key = $("apiKey").value.trim();
+  const model = $("customModel").value.trim() || $("modelSelect").value;
+  const article = (textOverride ?? $("sourceText").value).trim();
+  const title = $("sourceTitle").value.trim();
+  if (!key) throw new Error("أدخل مفتاح NanoGPT API في الإعدادات.");
+  if (!model) throw new Error("اختر موديلًا أو أدخل Model ID الدقيق من NanoGPT.");
+  if (!article) throw new Error("لم يصل نص المقال. شارك النص نفسه أو الصقه في مربع المقال. الرابط وحده لا يكفي دائمًا لجلب النص.");
+  localStorage.setItem("arabicTranslator.apiKey", key);
+  localStorage.setItem("arabicTranslator.model", model);
+  localStorage.setItem("arabicTranslator.mode", $("mode").value);
+  const response = await fetch(API_BASE + "/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + key,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "أنت مترجم عربي دقيق. اتبع تعليمات المستخدم بأمانة." },
+        { role: "user", content: promptForMode(mode, title, article) }
+      ],
+      temperature: 0.2,
+      stream: false
+    })
+  });
+  const raw = await response.text();
+  let data = {};
+  try { data = JSON.parse(raw); } catch {}
+  if (!response.ok) {
+    const msg = data.error?.message || data.message || raw.slice(0,350) || ("HTTP " + response.status);
+    throw new Error("فشل طلب NanoGPT (HTTP " + response.status + "): " + msg);
+  }
+  const answer = data.choices?.[0]?.message?.content;
+  if (!answer) throw new Error("استجاب API لكن لم أجد النص في choices[0].message.content. تحقق من توافق الموديل مع Chat Completions.");
+  return answer.trim();
+}
+async function translateCurrent(automatic = false) {
+  clearStatus();
+  const btn = $("translateBtn"); btn.disabled = true; btn.textContent = "جارٍ الترجمة…";
+  try {
+    const text = $("sourceText").value.trim();
+    lastOriginal = text; lastTitle = $("sourceTitle").value.trim(); lastMode = $("mode").value;
+    setStatus(automatic ? "اكتمل الاستلام. جارٍ ترجمة المقال…" : "جارٍ إرسال النص إلى NanoGPT. انتظر قليلًا…", "show");
+    const answer = await callModel(lastMode, text);
+    lastTranslation = answer;
+    $("resultCard").style.display = "block";
+    $("resultHeading").textContent = lastMode === "explain" ? "الشرح" : "الترجمة";
+    $("modeBadge").textContent = $("mode").selectedOptions[0].textContent;
+    $("output").textContent = answer;
+    $("explainBtn").style.display = lastMode === "explain" ? "none" : "inline-block";
+    $("explainNote").style.display = "none";
+    setStatus("اكتملت العملية.", "show");
+    $("resultCard").scrollIntoView({behavior:"smooth",block:"start"});
+  } catch(e) {
+    setStatus(e.message + (String(e.message).includes("Failed to fetch") ? "\nقد يكون السبب CORS أو اتصال الشبكة. لا تغيّر مفتاحك قبل معرفة الخطأ." : ""), "error");
+  } finally { btn.disabled = false; btn.textContent = "ترجمة المقال"; }
+}
+$("translateBtn").addEventListener("click", () => translateCurrent(false));
+$("explainBtn").addEventListener("click", async () => {
+  const btn = $("explainBtn"); btn.disabled = true; btn.textContent = "جارٍ إعداد الشرح…";
+  try {
+    setStatus("جارٍ شرح الترجمة…", "show");
+    const source = "النص الأصلي المتاح:\n" + lastOriginal + "\n\nالترجمة الأمينة:\n" + lastTranslation;
+    const answer = await callModel("explain", source);
+    $("resultHeading").textContent = "شرح المقال";
+    $("modeBadge").textContent = "شرح للمبتدئ";
+    $("output").textContent = answer;
+    $("explainNote").style.display = "block";
+    setStatus("اكتمل الشرح.", "show");
+  } catch(e) { setStatus(e.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "اشرح هذه الترجمة"; }
+});
+$("loadModelsBtn").addEventListener("click", loadModels);
+$("settingsBtn").addEventListener("click", saveSettings);
+$("forgetKeyBtn").addEventListener("click", () => { localStorage.removeItem("arabicTranslator.apiKey"); $("apiKey").value=""; setStatus("حُذف المفتاح المحفوظ من هذا المتصفح.", "show"); });
+$("toggleKeyBtn").addEventListener("click", () => { $("apiKey").type = $("apiKey").type === "password" ? "text" : "password"; });
+$("clearBtn").addEventListener("click", () => { $("sourceTitle").value=""; $("sourceText").value=""; sharedUrl=""; $("openLinkBtn").style.display="none"; clearStatus(); });
+$("pasteBtn").addEventListener("click", async () => {
+  try { $("sourceText").value = await navigator.clipboard.readText(); setStatus("تم اللصق.", "show"); }
+  catch { setStatus("لم يسمح المتصفح بالوصول إلى الحافظة. اضغط مطولًا داخل مربع النص واختر لصق.", "error"); }
+});
+$("openLinkBtn").addEventListener("click", () => { if(sharedUrl) window.open(sharedUrl, "_blank", "noopener"); });
+$("extractBtn").addEventListener("click", () => extractArticle(false));
+$("copyBtn").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("output").textContent); setStatus("تم نسخ النتيجة.", "show"); }
+  catch { setStatus("تعذر النسخ تلقائيًا. اضغط مطولًا على النص وانسخه.", "error"); }
+});
+loadSettings();
+readShared();
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
